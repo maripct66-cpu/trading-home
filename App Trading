@@ -1,0 +1,164 @@
+index.html
+<!doctype html>
+<html lang="it">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Trading Home – Home</title>
+<link rel="icon" href="data:,">
+<style>
+:root{--bg:#f8fafc;--fg:#0f172a;--muted:#64748b;--card:#ffffff;--ring:#e2e8f0;--bull:#16a34a;--bear:#dc2626;}
+*{box-sizing:border-box} body{margin:0;font-family:ui-sans-serif,system-ui,-apple-system,Segoe UI,Roboto,Helvetica,Arial;background:var(--bg);color:var(--fg)}
+.container{max-width:1100px;margin:0 auto;padding:16px}
+header{position:sticky;top:0;z-index:10;background:#ffffffcc;backdrop-filter:saturate(180%) blur(8px);border-bottom:1px solid var(--ring)}
+.header-in{display:flex;align-items:center;justify-content:space-between;gap:12px;padding:12px 16px}
+.logo{width:36px;height:36px;background:#0f172a;border-radius:16px}
+.title{font-weight:700;font-size:20px}
+.card{background:var(--card);border-radius:16px;box-shadow:0 6px 24px rgba(0,0,0,.06);padding:16px;border:1px solid var(--ring)}
+.row{display:flex;gap:12px;flex-wrap:wrap}
+.input,select,textarea{width:100%;padding:12px 14px;border-radius:12px;border:1px solid var(--ring);font-size:14px}
+.button{background:#0f172a;color:#fff;border:0;padding:12px 18px;border-radius:12px}
+.small{color:var(--muted);font-size:12px}
+.subtitle{font-weight:600;font-size:16px}
+.chart-wrap{border-radius:12px;border:1px solid var(--ring);overflow:hidden}
+canvas{display:block;width:100%;height:420px;background:linear-gradient(135deg,#e6f4ea,#fcebea)}
+.grid{display:grid;gap:16px}
+.grid-3{grid-template-columns:1fr}
+@media(min-width:768px){.grid-3{grid-template-columns:1fr 1fr 1fr}.title{font-size:22px}}
+.badge{background:#f1f5f9;border-radius:999px;padding:6px 10px;font-size:12px;display:inline-block}
+</style>
+</head>
+<body>
+<header>
+  <div class="header-in">
+    <div class="row" style="align-items:center">
+      <div class="logo"></div>
+      <div class="title">Trading Home — Home</div>
+    </div>
+    <div class="small">Solo demo didattica</div>
+  </div>
+</header>
+
+<main class="container" style="display:grid;gap:16px;padding-top:16px">
+  <!-- Ricerca -->
+  <section class="card">
+    <div class="grid" style="gap:12px">
+      <div class="row">
+        <input id="q" class="input" placeholder="ISIN / Nome / Simbolo (es. BTCUSDT, ETHUSDT)">
+        <select id="tf" style="max-width:120px" class="input">
+          <option>1m</option><option>5m</option><option selected>1h</option><option>4h</option><option>1d</option>
+        </select>
+        <button id="search" class="button">Ricerca</button>
+      </div>
+      <div class="small">Live gratis solo per crypto (in questa demo i dati sono simulati). Per mercati reali attiveremo API in una fase successiva.</div>
+      <div>
+        <label class="small">Notizie (opz.) – incolla 3–10 titoli</label>
+        <textarea id="news" class="input" rows="3" placeholder="Company X beats earnings; Oil surges on supply risks; ECB hints rate cuts…"></textarea>
+      </div>
+    </div>
+  </section>
+
+  <!-- Grafico -->
+  <section class="card">
+    <div class="row" style="justify-content:space-between;margin-bottom:8px">
+      <div class="subtitle">Grafico (candele verdi/rosse)</div>
+      <div class="row">
+        <button id="play" class="button">⏵︎ Play</button>
+        <button id="pause" class="button">⏸︎ Pausa</button>
+        <button id="reset" class="button">↺ Reset</button>
+      </div>
+    </div>
+    <div class="chart-wrap"><canvas id="chart"></canvas></div>
+    <div class="row" style="justify-content:space-between;margin-top:8px">
+      <div class="small">Trascina per scorrere • Doppio tap per tornare all’ultima candela</div>
+      <div class="row"><span class="small">Velocità</span> <input id="speed" type="range" min="100" max="1500" step="50" value="700"></div>
+    </div>
+  </section>
+
+  <!-- Esito -->
+  <section class="grid grid-3">
+    <div class="card">
+      <div class="subtitle" style="margin-bottom:8px">Esito pattern & news</div>
+      <div id="invest" style="font-weight:700;font-size:28px;color:#16a34a">Investire: 62%</div>
+      <div id="disinvest" style="font-weight:700;font-size:28px;color:#dc2626">Disinvestire: 38%</div>
+      <div class="small" style="margin-top:8px">Stima didattica: combina pattern semplici e sentiment titoli.</div>
+    </div>
+    <div class="card" style="grid-column:span 2">
+      <div class="subtitle" style="margin-bottom:8px">Come leggere le percentuali</div>
+      <ul class="small" style="line-height:1.6">
+        <li>Pattern: più occorrenze → punteggio più alto.</li>
+        <li>Sentiment: titoli positivi/negativi modificano la %.</li>
+        <li>Timeframe coerente con la tua operatività (1h/1d).</li>
+      </ul>
+      <p class="small">Non costituisce consulenza finanziaria.</p>
+    </div>
+  </section>
+</main>
+
+<script>
+// --- Canvas setup HiDPI ---
+const canvas = document.getElementById('chart');
+const ctx = canvas.getContext('2d');
+function resize(){ const r=window.devicePixelRatio||1, rect=canvas.getBoundingClientRect();
+  canvas.width=Math.floor(rect.width*r); canvas.height=Math.floor(420*r); ctx.setTransform(r,0,0,r,0,0); draw(); }
+window.addEventListener('resize', resize);
+
+// --- Random walk OHLC demo ---
+let candles=[], base=20000, timer=null, offset=0, dragging=false, startX=0, startOff=0;
+function nextC(prev){ const o=prev?prev.c:base, vol=Math.max(5,Math.abs(o)*0.003), dir=(Math.random()-0.5)*vol,
+  c=Math.max(1,o+dir), h=Math.max(o,c)+Math.random()*vol, l=Math.min(o,c)-Math.random()*vol; return {o,h,l,c}; }
+function seed(){ candles=[]; base=20000+Math.random()*2000; for(let i=0;i<120;i++) candles.push(nextC(candles[candles.length-1])); }
+function play(){ if(timer) return; timer=setInterval(()=>{ candles.push(nextC(candles.at(-1))); draw(); }, Number(speed.value)); }
+function pause(){ clearInterval(timer); timer=null; }
+function reset(){ pause(); seed(); offset=0; draw(); }
+
+document.getElementById('play').onclick=play;
+document.getElementById('pause').onclick=pause;
+document.getElementById('reset').onclick=reset;
+document.getElementById('speed').oninput=()=>{ if(timer){ pause(); play(); } };
+
+canvas.addEventListener('pointerdown',e=>{ dragging=true; startX=e.clientX; startOff=offset; canvas.setPointerCapture(e.pointerId); });
+canvas.addEventListener('pointermove',e=>{ if(!dragging) return; const dx=e.clientX-startX, per=10; offset=Math.max(0,Math.min(Math.max(0,candles.length-60), startOff-Math.round(dx/per))); draw(); });
+canvas.addEventListener('pointerup',()=>dragging=false);
+let lastTap=0; canvas.addEventListener('pointerdown',()=>{ const now=Date.now(); if(now-lastTap<300){ offset=0; draw(); } lastTap=now; });
+
+// --- Draw ---
+function draw(){
+  const w=canvas.getBoundingClientRect().width, h=420; ctx.clearRect(0,0,w,h);
+  // grid
+  ctx.strokeStyle='#e5e7eb'; ctx.lineWidth=1;
+  for(let i=0;i<=5;i++){ const y=Math.round((h-24)*i/5)+12; ctx.beginPath(); ctx.moveTo(0,y); ctx.lineTo(w,y); ctx.stroke(); }
+  // visible range
+  const cw=8, gap=2, per=cw+gap, maxVis=Math.floor(w/per), start=Math.max(0,candles.length-maxVis-offset), end=Math.min(candles.length, start+maxVis), sl=candles.slice(start,end);
+  if(sl.length===0) return;
+  // y-scale
+  let min=Infinity,max=-Infinity; for(const k of sl){ if(k.l<min)min=k.l; if(k.h>max)max=k.h; }
+  const pad=(max-min)*0.05; min-=pad; max+=pad; const y=v=>(h-24)-(v-min)*(h-24)/(max-min)+12;
+  // axes labels
+  ctx.fillStyle='#64748b'; ctx.font='12px system-ui, -apple-system, Segoe UI, Roboto';
+  ctx.fillText(max.toFixed(2),6,14); ctx.fillText(min.toFixed(2),6,h-6);
+  // candles
+  for(let i=0;i<sl.length;i++){ const k=sl[i], x=i*per+6, up=k.c>=k.o, color=up?'var(--bull)':'var(--bear)';
+    // wick
+    ctx.strokeStyle=getComputedStyle(document.documentElement).getPropertyValue(up?'--bull':'--bear').trim();
+    ctx.beginPath(); ctx.moveTo(x+cw/2,y(k.h)); ctx.lineTo(x+cw/2,y(k.l)); ctx.stroke();
+    // body
+    const top=y(Math.max(k.o,k.c)), bottom=y(Math.min(k.o,k.c)), bh=Math.max(1,bottom-top);
+    ctx.fillStyle=getComputedStyle(document.documentElement).getPropertyValue(up?'--bull':'--bear').trim();
+    ctx.fillRect(x,top,cw,bh);
+  }
+  // fake “probabilità” aggiornate
+  const pct = Math.max(20, Math.min(80, 50 + (sl.at(-1).c - sl[0].c)/(sl[0].c)*200));
+  document.getElementById('invest').textContent = `Investire: ${pct.toFixed(0)}%`;
+  document.getElementById('disinvest').textContent = `Disinvestire: ${(100-pct).toFixed(0)}%`;
+}
+
+seed(); resize(); draw();
+</script>
+</body>
+</html>
+
+.grid{display:grid;gap:16px}
+.grid-3{grid-template-columns:1fr}
+@media(min-width:768px){.grid-3{grid-template-columns:1fr 1fr 1fr}.title{font-size:22px}}
+.b
