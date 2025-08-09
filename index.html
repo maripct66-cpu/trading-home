@@ -26,7 +26,62 @@ h1{margin:6px 0 10px;font-size:26px}
 .news{display:grid;gap:8px} .news-item{padding:10px;border-radius:12px;border:1px solid #1f2937;background:#0f172a}
 .news-item b{display:block;margin-bottom:6px} .tag{display:inline-block;padding:4px 8px;border:1px solid #1f2937;border-radius:999px;font-size:11px;margin-right:6px}
 .toggle{display:flex;align-items:center;gap:6px}
-@media (max-width:480px){ h1{font-size:22px} #chart{height:360px} }
+@media (max-width:480px){ h1{font-size:22px} #chart{height:360px} }/* ====== Migliorie per smartphone ====== */
+@media (max-width: 768px) {
+  /* Tipografia & spazi */
+  html, body { font-size: 16px; }
+  h1 { font-size: 22px; line-height: 1.25; }
+  .wrap { padding: 10px; }
+  .row { gap: 10px; }
+
+  /* Input e pulsanti più grandi (touch-friendly) */
+  .input, .sel, .lang {
+    padding: 14px 16px;
+    font-size: 16px;         /* evita lo zoom automatico su iOS */
+    min-height: 44px;        /* target minimo consigliato */
+  }
+  .btn {
+    padding: 12px 16px;
+    font-size: 16px;
+    min-height: 44px;
+    border-radius: 14px;
+  }
+
+  /* Griglia: passa a 1 colonna */
+  .grid-2 { grid-template-columns: 1fr !important; }
+
+  /* Campi in riga che vanno a capo bene */
+  .input { flex: 1 1 100%; min-width: 0; }
+  .sel { flex: 0 0 auto; }
+
+  /* Grafici più alti e leggibili */
+  #chart    { height: 520px; }
+  #rsiChart { height: 200px; }
+  #macdChart{ height: 220px; }
+
+  /* Tooltip, menu e label ApexCharts più grandi */
+  .apexcharts-tooltip,
+  .apexcharts-menu,
+  .apexcharts-legend-text,
+  .apexcharts-xaxis text,
+  .apexcharts-yaxis text {
+    font-size: 14px !important;
+  }
+  .apexcharts-toolbar {
+    transform: scale(1.15);             /* ingrandisce icone zoom/pan */
+    transform-origin: top right;
+  }
+}
+
+/* Schermi piccoli piccoli (telefoni < 420px) */
+@media (max-width: 420px) {
+  h1 { font-size: 20px; }
+  #chart    { height: 560px; }
+  #rsiChart { height: 220px; }
+  #macdChart{ height: 240px; }
+  .btn { padding: 12px 14px; }
+}
+
 </style>
 </head>
 <body>
