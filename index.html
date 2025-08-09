@@ -1,0 +1,100 @@
+index.html<!DOCTYPE html>
+<html lang="it">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Trading Home</title>
+    <script src="https://cdn.jsdelivr.net/npm/apexcharts"></script>
+    <style>
+        body {
+            background-color: #121212;
+            color: white;
+            font-family: Arial, sans-serif;
+            margin: 0;
+            padding: 0;
+        }
+        header {
+            text-align: center;
+            padding: 20px;
+            background-color: #1f1f1f;
+        }
+        input {
+            padding: 10px;
+            width: 300px;
+            border: none;
+            border-radius: 5px;
+            margin-right: 10px;
+        }
+        button {
+            padding: 10px 15px;
+            background-color: #4CAF50;
+            color: white;
+            border: none;
+            border-radius: 5px;
+            cursor: pointer;
+        }
+        button:hover {
+            background-color: #45a049;
+        }
+        #chart {
+            max-width: 900px;
+            margin: 40px auto;
+        }
+    </style>
+</head>
+<body>
+    <header>
+        <h1>Trading Home</h1>
+        <input type="text" id="search" placeholder="Inserisci ISIN o nome azione...">
+        <button onclick="cerca()">🔍 Cerca</button>
+    </header>
+
+    <div id="chart"></div>
+
+    <script>
+        function cerca() {
+            let valore = document.getElementById("search").value;
+            alert("Hai cercato: " + valore + "\n(In futuro qui appariranno i dati reali)");
+        }
+
+        var options = {
+            series: [{
+                data: [
+                    { x: new Date(2023, 1, 1), y: [51, 55, 50, 54] },
+                    { x: new Date(2023, 1, 2), y: [54, 58, 53, 57] },
+                    { x: new Date(2023, 1, 3), y: [57, 59, 56, 58] },
+                    { x: new Date(2023, 1, 4), y: [58, 60, 57, 59] },
+                    { x: new Date(2023, 1, 5), y: [59, 62, 58, 61] }
+                ]
+            }],
+            chart: {
+                type: 'candlestick',
+                height: 400
+            },
+            title: {
+                text: 'Andamento Titolo (demo)',
+                align: 'left',
+                style: { color: '#fff' }
+            },
+            xaxis: {
+                type: 'datetime'
+            },
+            yaxis: {
+                tooltip: { enabled: true }
+            },
+            plotOptions: {
+                candlestick: {
+                    colors: {
+                        upward: '#00ff00', // Verde
+                        downward: '#ff0000' // Rosso
+                    }
+                }
+            }
+        };
+
+        var chart = new ApexCharts(document.querySelector("#chart"), options);
+        chart.render();
+    </script>
+</body>
+</html>
+
