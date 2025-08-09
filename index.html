@@ -47,7 +47,7 @@ h1{margin:6px 0 10px;font-size:26px}
       </select>
     </div>
     <div class="row">
-      <input id="symbol" class="input" placeholder="Esempi: BTCUSDT • EURUSD • XAUUSD • AAPL • ^SPX"/>
+      <input id="symbol" class="input" placeholder="Esempi: BTCUSDT • EURUSD • XAUUSD • AAPL • ^SPX • DAX • DOLLARO • ORO"/>
       <select id="interval" class="sel" title="Intervallo (solo crypto Binance)">
         <option>1m</option><option>5m</option><option>15m</option>
         <option selected>1h</option><option>4h</option><option>1d</option>
@@ -258,33 +258,71 @@ function detectPatterns(c){
 }
 
 /* ===== universal sources (Binance + Stooq) ===== */
-function clean(s){ return (s||"").trim().toUpperCase().replace(/\s+/g,"").replace(/\//g,""); }
-const ALIAS={
-  "BITCOIN":"BTCUSDT","BTC":"BTCUSDT","ETHEREUM":"ETHUSDT","ETH":"ETHUSDT","BNB":"BNBUSDT","SOL":"SOLUSDT",
-  "XRP":"XRPUSDT","ADA":"ADAUSDT","DOGE":"DOGEUSDT","MATIC":"MATICUSDT",
-  "EUR/USD":"EURUSD","EURUSD":"EURUSD","GBPUSD":"GBPUSD","USDJPY":"USDJPY","GBPJPY":"GBPJPY","USDCHF":"USDCHF",
-  "ORO":"XAUUSD","GOLD":"XAUUSD","XAUUSD":"XAUUSD","ARGENTO":"XAGUSD","SILVER":"XAGUSD","XAGUSD":"XAGUSD",
-  "PETROLIO":"BRENT","OIL":"BRENT","WTI":"WTI","BRENT":"BRENT",
-  "SP500":"^SPX","S&P500":"^SPX","SPX":"^SPX","NASDAQ":"^NDQ","DAX":"^DAX","FTSEMIB":"^FTMIB","FTSE100":"^FTSE",
-  "US10Y":"US10Y","BUND10Y":"DE10Y"
+// normalizza input: maiuscole, togli accenti/spazi/slash, riduci ripetizioni (DOLLLARO -> DOLLARO)
+function clean(s){
+  return (s||"")
+    .normalize("NFD").replace(/[\u0300-\u036f]/g,"")
+    .toUpperCase()
+    .replace(/\s+/g,"")
+    .replace(/\//g,"")
+    .replace(/(.)\1{2,}/g,"$1$1");
+}
+// sinonimi italiani comuni
+const IT_SYNONYMS = {
+  "DOLLARO":"EURUSD","EURO":"EURUSD","STERLINA":"GBPUSD","YEN":"USDJPY","FRANCO":"USDCHF",
+  "ORO":"XAUUSD","ARGENTO":"XAGUSD","PETROLIO":"BRENT","WTI":"WTI",
+  "NASDAQ":"^NDQ","SP500":"^SPX","S&P500":"^SPX","SNP500":"^SPX","INDICESP500":"^SPX",
+  "DAX":"^DAX","FTSEMIB":"^FTMIB","MIB":"^FTMIB","FTSE100":"^FTSE"
+};
+// alias estesi
+const ALIAS = {
+  // crypto
+  "BITCOIN":"BTCUSDT","BTC":"BTCUSDT","ETHEREUM":"ETHUSDT","ETH":"ETHUSDT",
+  "BNB":"BNBUSDT","SOL":"SOLUSDT","XRP":"XRPUSDT","ADA":"ADAUSDT","DOGE":"DOGEUSDT","MATIC":"MATICUSDT",
+  // forex (EN/IT)
+  "EURUSD":"EURUSD","GBPUSD":"GBPUSD","USDJPY":"USDJPY","GBPJPY":"GBPJPY","USDCHF":"USDCHF",
+  "EUR/USD":"EURUSD","GBP/USD":"GBPUSD","USD/JPY":"USDJPY","GBP/JPY":"GBPJPY","USD/CHF":"USDCHF",
+  // metalli / commodities
+  "XAUUSD":"XAUUSD","XAGUSD":"XAGUSD","BRENT":"BRENT","WTI":"WTI",
+  // indici
+  "SP500":"^SPX","S&P500":"^SPX","SPX":"^SPX","^SPX":"^SPX","NASDAQ":"^NDQ","^NDQ":"^NDQ",
+  "DAX":"^DAX","^DAX":"^DAX","FTSEMIB":"^FTMIB","^FTMIB":"^FTMIB","FTSE100":"^FTSE","^FTSE":"^FTSE",
+  // bond yield (se disponibili su Stooq)
+  "US10Y":"US10Y","DE10Y":"DE10Y"
 };
 function detectSource(raw){
-  const q=clean(raw);
-  if (ALIAS[q] && /USDT$/.test(ALIAS[q])) return {src:"binance",symbol:ALIAS[q]};
-  if (/^[A-Z0-9]+USDT$/.test(q)) return {src:"binance",symbol:q};
-  let sym=ALIAS[q]||q; sym=sym.toLowerCase();
-  if (/^[a-z]{6}$/.test(sym)) return {src:"stooq",symbol:sym};
-  if (/^\^/.test(sym)) return {src:"stooq",symbol:sym};
-  if (/(brent|wti|xauusd|xagusd)/.test(sym)) return {src:"stooq",symbol:sym};
+  let q = clean(raw);
+  if (IT_SYNONYMS[q]) q = IT_SYNONYMS[q];
+  if (ALIAS[q]) q = ALIAS[q];
+
+  // Crypto Binance se termina in USDT
+  if (/^[A-Z0-9]+USDT$/.test(q)) return { src:"binance", symbol:q };
+
+  // Tutto il resto: Stooq (daily)
+  let sym = q.toLowerCase();
+
+  // FX 6 lettere (eurusd)
+  if (/^[a-z]{6}$/.test(sym)) return { src:"stooq", symbol:sym };
+
+  // Indici ^spx, ^ndq...
+  if (/^\^/.test(q)) return { src:"stooq", symbol:q.toLowerCase() };
+
+  // Commodities note
+  if (/(brent|wti|xauusd|xagusd)/i.test(sym)) return { src:"stooq", symbol:sym };
+
+  // Azioni senza suffisso -> USA di default
   if (/^[a-z]{1,6}$/.test(sym)) sym += ".us";
-  return {src:"stooq",symbol:sym};
+
+  return { src:"stooq", symbol:sym };
 }
+// Binance (intraday)
 async function fetchBinanceCandles(symbol, interval='1h', limit=800){
   const url=`https://api.binance.com/api/v3/klines?symbol=${encodeURIComponent(symbol)}&interval=${interval}&limit=${limit}`;
   const r=await fetch(url); if(!r.ok) throw new Error("Binance error");
   const data=await r.json();
   return data.map(d=>({time:Math.floor(d[0]/1000),open:+d[1],high:+d[2],low:+d[3],close:+d[4],volume:+d[5]}));
 }
+// Stooq (daily)
 async function fetchStooqDaily(symbol, limit=800){
   const url=`https://stooq.com/q/d/l/?s=${encodeURIComponent(symbol)}&i=d`;
   const r=await fetch(url,{cache:"no-store"}); if(!r.ok) throw new Error("Stooq error");
@@ -297,6 +335,7 @@ async function fetchStooqDaily(symbol, limit=800){
   }
   return out.sort((a,b)=>a.time-b.time).slice(-limit);
 }
+// Loader unico
 async function fetchUniversal(raw){
   const {src,symbol}=detectSource(raw);
   if(src==="binance"){ const itv=$("interval").value; return await fetchBinanceCandles(symbol,itv,800); }
@@ -342,12 +381,12 @@ async function loadSymbol(raw){
     $("status").textContent = `${clean(q)} — candele: ${candles.length}`;
   }catch(e){
     $("status").textContent = "Errore: " + e.message;
-    alert("Simbolo non valido o rete non disponibile.\nEsempi:\n- Crypto: BTCUSDT\n- Forex: EURUSD\n- Oro: XAUUSD\n- Azioni USA: AAPL (o aapl.us)\n- Indici: ^SPX");
+    alert("Simbolo non valido o rete non disponibile.\nEsempi:\n- Crypto: BTCUSDT\n- Forex: EURUSD\n- Oro: XAUUSD\n- Azioni USA: AAPL (o aapl.us)\n- Indici: ^SPX, ^NDQ\n- Parole: DOLLARO, ORO, NASDAQ…");
   }
 }
 $("search").addEventListener("click", () => {
   const q = $("symbol").value.trim();
-  if (!q) { alert("Inserisci un simbolo o nome (es. BTCUSDT, EURUSD, XAUUSD, AAPL, ^SPX)"); return; }
+  if (!q) { alert("Inserisci un simbolo o nome (es. BTCUSDT, EURUSD, XAUUSD, AAPL, ^SPX, ORO, DOLLARO)"); return; }
   savePrefs(); loadSymbol(q);
 });
 $("refresh").addEventListener("click", () => {
