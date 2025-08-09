@@ -255,12 +255,12 @@ function detectPatterns(c){
 }
 
 /* ===== universal sources (Binance + Stooq) ===== */
-// normalizza input: togli accenti/spazi/slash, riduci ripetizioni (DOLLLARO -> DOLLARO)
+// normalizza input (accents/spazi/slash, ripetizioni tipo DOLLLARO -> DOLLARO)
 function clean(s){
   return (s||"").normalize("NFD").replace(/[\u0300-\u036f]/g,"").toUpperCase()
           .replace(/\s+/g,"").replace(/\//g,"").replace(/(.)\1{2,}/g,"$1$1");
 }
-// sinonimi italiani
+// sinonimi IT
 const IT_SYNONYMS = {
   "DOLLARO":"EURUSD","EURO":"EURUSD","STERLINA":"GBPUSD","YEN":"USDJPY","FRANCO":"USDCHF",
   "ORO":"XAUUSD","ARGENTO":"XAGUSD","PETROLIO":"BRENT","WTI":"WTI",
@@ -297,14 +297,23 @@ function detectSource(raw){
   if (/^[a-z]{1,6}$/.test(sym)) sym += ".us";                               // azioni USA default
   return { src:"stooq", symbol:sym };
 }
-// helper: tenta più URL (stooq.com, stooq.pl, proxy) e restituisce CSV valido
+
+/* === fetch robusto Stooq con fallback + parser tollerante === */
+// tenta più URL e ritorna CSV pulito anche se incapsulato in HTML
 async function fetchTextWithFallback(urls){
   for (const u of urls){
     try{
       const r = await fetch(u, { cache:"no-store" });
-      if (r.ok){
-        const t = await r.text();
-        if (t && /(^|\n)Date,Open,High,Low,Close/i.test(t)) return t;
+      if (!r.ok) continue;
+      let t = await r.text();
+      // elimina tag HTML se presenti (proxy/404) e normalizza
+      t = t.replace(/<[^>]+>/g, "\n");
+      t = t.replace(/\r\n/g,"\n").replace(/\r/g,"\n");
+      // cerca header CSV
+      const headerIdx = t.search(/(^|\n)\s*Date\s*,\s*Open\s*,\s*High\s*,\s*Low\s*,\s*Close/i);
+      if (headerIdx >= 0){
+        t = t.slice(headerIdx).trim();
+        if (/^Date\s*,\s*Open\s*,\s*High\s*,\s*Low\s*,\s*Close/i.test(t.split("\n")[0])) return t;
       }
     }catch(_){}
   }
@@ -317,7 +326,7 @@ async function fetchBinanceCandles(symbol, interval='1h', limit=800){
   const data=await r.json();
   return data.map(d=>({time:Math.floor(d[0]/1000),open:+d[1],high:+d[2],low:+d[3],close:+d[4],volume:+d[5]}));
 }
-// Stooq (daily) con fallback multipli
+// Stooq (daily) con fallback multipli e parser tollerante
 async function fetchStooqDaily(symbol, limit=800){
   const path=`q/d/l/?s=${encodeURIComponent(symbol)}&i=d`;
   const text=await fetchTextWithFallback([
@@ -326,14 +335,22 @@ async function fetchStooqDaily(symbol, limit=800){
     `https://r.jina.ai/http://stooq.com/${path}`,
     `https://r.jina.ai/http://stooq.pl/${path}`
   ]);
-  const lines=text.trim().split(/\r?\n/);
+  const lines=text.trim().split(/\n/);
+  // trova indice della riga header
+  let start=0;
+  for(let i=0;i<lines.length;i++){
+    if (/^\s*Date\s*,\s*Open\s*,\s*High\s*,\s*Low\s*,\s*Close/i.test(lines[i])) { start=i+1; break; }
+  }
   const out=[];
-  for(let i=1;i<lines.length;i++){
-    const [DateStr,Open,High,Low,Close,Volume]=lines[i].split(",");
-    if(!DateStr||!Open) continue;
+  for(let i=start;i<lines.length;i++){
+    const row=lines[i].trim(); if(!row) continue;
+    const cols=row.split(","); if(cols.length<5) continue;
+    const [DateStr, Open, High, Low, Close, Volume]=cols.map(s=>s.trim());
+    if(!/^\d{4}-\d{2}-\d{2}$/.test(DateStr)) continue;
     const ts=Math.floor(new Date(DateStr+"T00:00:00Z").getTime()/1000);
     out.push({time:ts,open:+Open,high:+High,low:+Low,close:+Close,volume:Volume?+Volume:0});
   }
+  if(!out.length) throw new Error("Nessun dato valido da Stooq");
   return out.sort((a,b)=>a.time-b.time).slice(-limit);
 }
 // Loader unico
