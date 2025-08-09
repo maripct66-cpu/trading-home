@@ -6,10 +6,7 @@
 <title>Trading Home — Universale</title>
 <script src="https://cdn.jsdelivr.net/npm/apexcharts"></script>
 <style>
-:root{
-  --bg:#0b0f19; --panel:#121826; --text:#e5e7eb; --muted:#94a3b8;
-  --bull:#22c55e; --bear:#ef4444; --accent:#38bdf8; --warn:#f59e0b;
-}
+:root{--bg:#0b0f19;--panel:#121826;--text:#e5e7eb;--muted:#94a3b8;--bull:#22c55e;--bear:#ef4444;--accent:#38bdf8;--warn:#f59e0b}
 *{box-sizing:border-box}
 body{margin:0;font-family:ui-sans-serif,system-ui,-apple-system,Segoe UI,Roboto,Helvetica,Arial;background:var(--bg);color:var(--text)}
 header{position:sticky;top:0;z-index:10;background:#0b0f19cc;backdrop-filter:blur(8px);border-bottom:1px solid #1f2937}
@@ -47,7 +44,7 @@ h1{margin:6px 0 10px;font-size:26px}
       </select>
     </div>
     <div class="row">
-      <input id="symbol" class="input" placeholder="Esempi: BTCUSDT • EURUSD • XAUUSD • AAPL • ^SPX • DAX • DOLLARO • ORO"/>
+      <input id="symbol" class="input" placeholder="Esempi: BTCUSDT • EURUSD • XAUUSD • AAPL • ^SPX • DOLLARO • ORO"/>
       <select id="interval" class="sel" title="Intervallo (solo crypto Binance)">
         <option>1m</option><option>5m</option><option>15m</option>
         <option selected>1h</option><option>4h</option><option>1d</option>
@@ -220,7 +217,7 @@ function updateKPIs(candles,e20,e50){
   $("kpiBuy").textContent=buy.toFixed(0)+"%"; $("kpiSell").textContent=(100-buy).toFixed(0)+"%";
 }
 
-/* ===== Pattern detection (ridotto & pulito) ===== */
+/* ===== Pattern detection (leggero) ===== */
 function localExtremaWithStrength(arr,look=3){
   const tops=[],bots=[];
   for(let i=look;i<arr.length-look;i++){
@@ -258,16 +255,12 @@ function detectPatterns(c){
 }
 
 /* ===== universal sources (Binance + Stooq) ===== */
-// normalizza input: maiuscole, togli accenti/spazi/slash, riduci ripetizioni (DOLLLARO -> DOLLARO)
+// normalizza input: togli accenti/spazi/slash, riduci ripetizioni (DOLLLARO -> DOLLARO)
 function clean(s){
-  return (s||"")
-    .normalize("NFD").replace(/[\u0300-\u036f]/g,"")
-    .toUpperCase()
-    .replace(/\s+/g,"")
-    .replace(/\//g,"")
-    .replace(/(.)\1{2,}/g,"$1$1");
+  return (s||"").normalize("NFD").replace(/[\u0300-\u036f]/g,"").toUpperCase()
+          .replace(/\s+/g,"").replace(/\//g,"").replace(/(.)\1{2,}/g,"$1$1");
 }
-// sinonimi italiani comuni
+// sinonimi italiani
 const IT_SYNONYMS = {
   "DOLLARO":"EURUSD","EURO":"EURUSD","STERLINA":"GBPUSD","YEN":"USDJPY","FRANCO":"USDCHF",
   "ORO":"XAUUSD","ARGENTO":"XAGUSD","PETROLIO":"BRENT","WTI":"WTI",
@@ -279,41 +272,43 @@ const ALIAS = {
   // crypto
   "BITCOIN":"BTCUSDT","BTC":"BTCUSDT","ETHEREUM":"ETHUSDT","ETH":"ETHUSDT",
   "BNB":"BNBUSDT","SOL":"SOLUSDT","XRP":"XRPUSDT","ADA":"ADAUSDT","DOGE":"DOGEUSDT","MATIC":"MATICUSDT",
-  // forex (EN/IT)
+  // forex
   "EURUSD":"EURUSD","GBPUSD":"GBPUSD","USDJPY":"USDJPY","GBPJPY":"GBPJPY","USDCHF":"USDCHF",
   "EUR/USD":"EURUSD","GBP/USD":"GBPUSD","USD/JPY":"USDJPY","GBP/JPY":"GBPJPY","USD/CHF":"USDCHF",
-  // metalli / commodities
+  // commodities
   "XAUUSD":"XAUUSD","XAGUSD":"XAGUSD","BRENT":"BRENT","WTI":"WTI",
   // indici
   "SP500":"^SPX","S&P500":"^SPX","SPX":"^SPX","^SPX":"^SPX","NASDAQ":"^NDQ","^NDQ":"^NDQ",
   "DAX":"^DAX","^DAX":"^DAX","FTSEMIB":"^FTMIB","^FTMIB":"^FTMIB","FTSE100":"^FTSE","^FTSE":"^FTSE",
-  // bond yield (se disponibili su Stooq)
+  // bond yield
   "US10Y":"US10Y","DE10Y":"DE10Y"
 };
 function detectSource(raw){
   let q = clean(raw);
   if (IT_SYNONYMS[q]) q = IT_SYNONYMS[q];
   if (ALIAS[q]) q = ALIAS[q];
-
-  // Crypto Binance se termina in USDT
+  // Binance se termina con USDT
   if (/^[A-Z0-9]+USDT$/.test(q)) return { src:"binance", symbol:q };
-
-  // Tutto il resto: Stooq (daily)
+  // Stooq per tutto il resto
   let sym = q.toLowerCase();
-
-  // FX 6 lettere (eurusd)
-  if (/^[a-z]{6}$/.test(sym)) return { src:"stooq", symbol:sym };
-
-  // Indici ^spx, ^ndq...
-  if (/^\^/.test(q)) return { src:"stooq", symbol:q.toLowerCase() };
-
-  // Commodities note
+  if (/^[a-z]{6}$/.test(sym)) return { src:"stooq", symbol:sym };           // es. eurusd
+  if (/^\^/.test(q)) return { src:"stooq", symbol:q.toLowerCase() };        // es. ^spx
   if (/(brent|wti|xauusd|xagusd)/i.test(sym)) return { src:"stooq", symbol:sym };
-
-  // Azioni senza suffisso -> USA di default
-  if (/^[a-z]{1,6}$/.test(sym)) sym += ".us";
-
+  if (/^[a-z]{1,6}$/.test(sym)) sym += ".us";                               // azioni USA default
   return { src:"stooq", symbol:sym };
+}
+// helper: tenta più URL (stooq.com, stooq.pl, proxy) e restituisce CSV valido
+async function fetchTextWithFallback(urls){
+  for (const u of urls){
+    try{
+      const r = await fetch(u, { cache:"no-store" });
+      if (r.ok){
+        const t = await r.text();
+        if (t && /(^|\n)Date,Open,High,Low,Close/i.test(t)) return t;
+      }
+    }catch(_){}
+  }
+  throw new Error("Stooq non disponibile al momento");
 }
 // Binance (intraday)
 async function fetchBinanceCandles(symbol, interval='1h', limit=800){
@@ -322,16 +317,22 @@ async function fetchBinanceCandles(symbol, interval='1h', limit=800){
   const data=await r.json();
   return data.map(d=>({time:Math.floor(d[0]/1000),open:+d[1],high:+d[2],low:+d[3],close:+d[4],volume:+d[5]}));
 }
-// Stooq (daily)
+// Stooq (daily) con fallback multipli
 async function fetchStooqDaily(symbol, limit=800){
-  const url=`https://stooq.com/q/d/l/?s=${encodeURIComponent(symbol)}&i=d`;
-  const r=await fetch(url,{cache:"no-store"}); if(!r.ok) throw new Error("Stooq error");
-  const text=await r.text(); const lines=text.trim().split(/\r?\n/); const out=[];
+  const path=`q/d/l/?s=${encodeURIComponent(symbol)}&i=d`;
+  const text=await fetchTextWithFallback([
+    `https://stooq.com/${path}`,
+    `https://stooq.pl/${path}`,
+    `https://r.jina.ai/http://stooq.com/${path}`,
+    `https://r.jina.ai/http://stooq.pl/${path}`
+  ]);
+  const lines=text.trim().split(/\r?\n/);
+  const out=[];
   for(let i=1;i<lines.length;i++){
     const [DateStr,Open,High,Low,Close,Volume]=lines[i].split(",");
     if(!DateStr||!Open) continue;
     const ts=Math.floor(new Date(DateStr+"T00:00:00Z").getTime()/1000);
-    out.push({time:ts,open:+Open,high:+High,low:+Low,close:+Close,volume:+(Volume||0)});
+    out.push({time:ts,open:+Open,high:+High,low:+Low,close:+Close,volume:Volume?+Volume:0});
   }
   return out.sort((a,b)=>a.time-b.time).slice(-limit);
 }
@@ -342,7 +343,7 @@ async function fetchUniversal(raw){
   else{ const data=await fetchStooqDaily(symbol,800); if(!data.length) throw new Error("Nessun dato da Stooq per "+symbol); return data; }
 }
 
-/* ===== data: CSV & news ===== */
+/* ===== CSV & News ===== */
 function parseCSV(text){
   const L=text.trim().split(/\r?\n/), H=L[0].split(',').map(s=>s.trim().toLowerCase());
   const idx={t:H.findIndex(h=>["timestamp","date","time","t"].includes(h)),o:H.findIndex(h=>["open","o"].includes(h)),
@@ -374,7 +375,7 @@ function renderNews(items){
 /* ===== UI ===== */
 async function loadSymbol(raw){
   const q = raw || $("symbol").value;
-  $("status").textContent = "Carico " + q + "…";
+  $("status").textContent = "Carico " + q + "… (Binance per crypto, Stooq per altri)";
   try{
     const candles = await fetchUniversal(q);
     updateAllCharts(candles);
@@ -416,4 +417,3 @@ initCharts(); loadPrefs(); loadSymbol($("symbol").value||"BTCUSDT");
 </script>
 </body>
 </html>
-
