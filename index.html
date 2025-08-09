@@ -1,100 +1,146 @@
-index.html<!DOCTYPE html>
+<!DOCTYPE html>
 <html lang="it">
 <head>
-    <meta charset="UTF-8">
-    <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>Trading Home</title>
-    <script src="https://cdn.jsdelivr.net/npm/apexcharts"></script>
-    <style>
-        body {
-            background-color: #121212;
-            color: white;
-            font-family: Arial, sans-serif;
-            margin: 0;
-            padding: 0;
-        }
-        header {
-            text-align: center;
-            padding: 20px;
-            background-color: #1f1f1f;
-        }
-        input {
-            padding: 10px;
-            width: 300px;
-            border: none;
-            border-radius: 5px;
-            margin-right: 10px;
-        }
-        button {
-            padding: 10px 15px;
-            background-color: #4CAF50;
-            color: white;
-            border: none;
-            border-radius: 5px;
-            cursor: pointer;
-        }
-        button:hover {
-            background-color: #45a049;
-        }
-        #chart {
-            max-width: 900px;
-            margin: 40px auto;
-        }
-    </style>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0"/>
+  <title>Trading Home</title>
+  <script src="https://cdn.jsdelivr.net/npm/apexcharts"></script>
+  <style>
+    :root{
+      --bg:#0b0f19; --panel:#121826; --text:#e5e7eb; --muted:#94a3b8;
+      --bull:#22c55e; --bear:#ef4444; --accent:#38bdf8;
+    }
+    *{box-sizing:border-box}
+    body{margin:0; font-family: ui-sans-serif,system-ui,-apple-system,Segoe UI,Roboto,Helvetica,Arial;
+         background:var(--bg); color:var(--text)}
+    header{position:sticky; top:0; z-index:10; background:#0b0f19cc; backdrop-filter: blur(8px);
+           border-bottom:1px solid #1f2937}
+    .wrap{max-width:1080px; margin:0 auto; padding:16px}
+    h1{margin:6px 0 12px; font-size:28px}
+    .row{display:flex; gap:10px; flex-wrap:wrap; align-items:center}
+    .input{flex:1; min-width:240px; padding:12px 14px; border-radius:12px; border:1px solid #1f2937; background:var(--panel); color:var(--text)}
+    .btn{padding:12px 16px; border:0; border-radius:12px; background:var(--accent); color:#001018; font-weight:600; cursor:pointer}
+    .card{background:var(--panel); border:1px solid #1f2937; border-radius:16px; padding:16px}
+    .grid{display:grid; gap:16px}
+    @media(min-width:900px){ .grid-2{grid-template-columns: 2fr 1fr} }
+    .muted{color:var(--muted); font-size:12px}
+    .kpi{display:flex; gap:10px; flex-wrap:wrap}
+    .pill{background:#0f172a; border:1px solid #1f2937; border-radius:999px; padding:8px 12px; font-size:12px}
+    #chart{width:100%; height:460px}
+  </style>
 </head>
 <body>
-    <header>
-        <h1>Trading Home</h1>
-        <input type="text" id="search" placeholder="Inserisci ISIN o nome azione...">
-        <button onclick="cerca()">🔍 Cerca</button>
-    </header>
+  <header>
+    <div class="wrap">
+      <h1>Trading Home</h1>
+      <div class="row">
+        <input id="query" class="input" placeholder="ISIN / Nome / Simbolo (es. BTCUSDT, AAPL, ORO)"/>
+        <button id="search" class="btn">🔎 Cerca</button>
+      </div>
+      <div class="muted" style="margin-top:6px">
+        Demo: i dati vengono simulati localmente. (Quando vorrai, li colleghiamo a Binance/GDELT.)
+      </div>
+    </div>
+  </header>
 
-    <div id="chart"></div>
+  <main class="wrap grid grid-2" style="padding-top:16px">
+    <section class="card" style="grid-column:1 / -1">
+      <div id="chart"></div>
+    </section>
 
-    <script>
-        function cerca() {
-            let valore = document.getElementById("search").value;
-            alert("Hai cercato: " + valore + "\n(In futuro qui appariranno i dati reali)");
+    <section class="card">
+      <h3 style="margin:0 0 8px">Esito pattern & news (demo)</h3>
+      <div class="kpi" style="margin-bottom:8px">
+        <span class="pill">Investire: <b id="kpiBuy">—%</b></span>
+        <span class="pill">Disinvestire: <b id="kpiSell">—%</b></span>
+        <span class="pill">Candele: <b id="kpiCount">—</b></span>
+      </div>
+      <div class="muted">Stima puramente didattica: calcolata dalla variazione % del periodo mostrato.</div>
+    </section>
+
+    <section class="card">
+      <h3 style="margin:0 0 8px">Note</h3>
+      <ul class="muted" style="line-height:1.6; margin:0; padding-left:18px">
+        <li>Zoom: rotellina / pinch • Pan: trascina</li>
+        <li>Verde = candela rialzista • Rosso = candela ribassista</li>
+        <li>Prossimo passo: dati reali & sentiment news</li>
+      </ul>
+    </section>
+  </main>
+
+  <script>
+    // ------ Utilità demo: genera OHLC casuali coerenti ------
+    function genSeries(n=120, start=20000){
+      const out=[];
+      let o=start, c=start;
+      for(let i=0;i<n;i++){
+        o = c;
+        const vol = Math.max(5, Math.abs(o)*0.004);
+        const dir = (Math.random()-0.5) * vol;
+        c = Math.max(1, o + dir);
+        const h = Math.max(o,c) + Math.random()*vol*0.6;
+        const l = Math.min(o,c) - Math.random()*vol*0.6;
+        out.push({ x: new Date(Date.now() - (n-i)*3600*1000), y: [round(o), round(h), round(l), round(c)] });
+      }
+      return out;
+    }
+    function round(v){ return Math.round(v*100)/100 }
+
+    // ------ Chart setup (ApexCharts) ------
+    let series = genSeries();
+    const options = {
+      chart: {
+        type: 'candlestick',
+        height: 460,
+        background: '#121826',
+        foreColor: '#e5e7eb',
+        animations: { enabled: true },
+        toolbar: { show: true, tools: { pan: true, zoom: true, zoomin:true, zoomout:true, reset:true } },
+        zoom: { enabled: true }
+      },
+      theme: { mode: 'dark' },
+      series: [{ data: series }],
+      xaxis: { type: 'datetime' },
+      yaxis: { tooltip: { enabled: true }, decimalsInFloat: 2 },
+      grid: { borderColor: '#1f2937' },
+      plotOptions: {
+        candlestick: {
+          colors: { upward: getComputedStyle(document.documentElement).getPropertyValue('--bull').trim(),
+                    downward: getComputedStyle(document.documentElement).getPropertyValue('--bear').trim() },
+          wick: { useFillColor: true }
         }
+      },
+      title: { text: 'Grafico (demo)', align: 'left', style: { color:'#e5e7eb' } }
+    };
+    const chart = new ApexCharts(document.querySelector("#chart"), options);
+    chart.render();
 
-        var options = {
-            series: [{
-                data: [
-                    { x: new Date(2023, 1, 1), y: [51, 55, 50, 54] },
-                    { x: new Date(2023, 1, 2), y: [54, 58, 53, 57] },
-                    { x: new Date(2023, 1, 3), y: [57, 59, 56, 58] },
-                    { x: new Date(2023, 1, 4), y: [58, 60, 57, 59] },
-                    { x: new Date(2023, 1, 5), y: [59, 62, 58, 61] }
-                ]
-            }],
-            chart: {
-                type: 'candlestick',
-                height: 400
-            },
-            title: {
-                text: 'Andamento Titolo (demo)',
-                align: 'left',
-                style: { color: '#fff' }
-            },
-            xaxis: {
-                type: 'datetime'
-            },
-            yaxis: {
-                tooltip: { enabled: true }
-            },
-            plotOptions: {
-                candlestick: {
-                    colors: {
-                        upward: '#00ff00', // Verde
-                        downward: '#ff0000' // Rosso
-                    }
-                }
-            }
-        };
+    // ------ KPI demo (basato su performance periodo visibile) ------
+    function updateKPI(data){
+      const first = data[0]?.y?.[3];
+      const last  = data[data.length-1]?.y?.[3];
+      if(!first || !last){ setText('kpiBuy','—%'); setText('kpiSell','—%'); return; }
+      const perf = ((last-first)/first)*100; // %
+      const buy = Math.max(10, Math.min(90, 50 + perf)); // mappatura semplice
+      setText('kpiBuy',  buy.toFixed(0)+'%');
+      setText('kpiSell', (100-buy).toFixed(0)+'%');
+      setText('kpiCount', data.length);
+    }
+    function setText(id, txt){ document.getElementById(id).textContent = txt; }
+    updateKPI(series);
 
-        var chart = new ApexCharts(document.querySelector("#chart"), options);
-        chart.render();
-    </script>
+    // ------ Ricerca (solo per demo rigenera i dati) ------
+    document.getElementById('search').addEventListener('click', () => {
+      // In futuro qui metteremo: se ticker crypto -> Binance; altrimenti CSV/altre fonti
+      const q = document.getElementById('query').value.trim();
+      const seed = Math.max(1000, q ? q.split('').reduce((a,c)=>a+c.charCodeAt(0),0) : 20000);
+      // rigenera
+      series = genSeries(150, seed);
+      chart.updateSeries([{ data: series }], true);
+      updateKPI(series);
+    });
+  </script>
 </body>
 </html>
+
 
