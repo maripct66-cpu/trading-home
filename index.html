@@ -3,7 +3,7 @@
 <head>
 <meta charset="UTF-8"/>
 <meta name="viewport" content="width=device-width, initial-scale=1"/>
-<title>Trading Home — Definitiva</title>
+<title>Trading Home — Universale</title>
 <script src="https://cdn.jsdelivr.net/npm/apexcharts"></script>
 <style>
 :root{
@@ -41,14 +41,14 @@ h1{margin:6px 0 10px;font-size:26px}
 <header>
   <div class="wrap">
     <div class="row" style="justify-content:space-between">
-      <h1 id="t_title">Trading Home — Definitiva</h1>
+      <h1 id="t_title">Trading Home — Universale</h1>
       <select id="lang" class="lang">
         <option value="it">IT</option><option value="en">EN</option><option value="de">DE</option>
       </select>
     </div>
     <div class="row">
-      <input id="symbol" class="input" placeholder="Simbolo Binance (es. BTCUSDT) / parole chiave news"/>
-      <select id="interval" class="sel">
+      <input id="symbol" class="input" placeholder="Esempi: BTCUSDT • EURUSD • XAUUSD • AAPL • ^SPX"/>
+      <select id="interval" class="sel" title="Intervallo (solo crypto Binance)">
         <option>1m</option><option>5m</option><option>15m</option>
         <option selected>1h</option><option>4h</option><option>1d</option>
       </select>
@@ -60,7 +60,9 @@ h1{margin:6px 0 10px;font-size:26px}
         <input type="checkbox" id="togglePatterns" checked/>
         <span class="muted" data-i18n="showpat">Mostra pattern</span>
       </label>
-      <div class="muted" id="t_note" style="margin-left:auto">Crypto live (Binance). Per altri asset: carica un CSV qui sotto.</div>
+      <div class="muted" id="t_note" style="margin-left:auto">
+        Crypto (intraday) via Binance • Altri mercati (daily) via Stooq • CSV locale per tutto il resto
+      </div>
     </div>
   </div>
 </header>
@@ -73,7 +75,7 @@ h1{margin:6px 0 10px;font-size:26px}
     <div id="chart"></div>
     <div id="rsiChart" style="margin-top:8px"></div>
     <div id="macdChart" style="margin-top:8px"></div>
-    <div class="muted" style="margin-top:6px">Candele (verde/rosso) • EMA20/50/200 • RSI(14) • MACD(12,26,9)</div>
+    <div class="muted" style="margin-top:6px">Candele • EMA20/50/200 • RSI(14) • MACD(12,26,9)</div>
   </section>
 
   <section class="card">
@@ -126,10 +128,7 @@ function setLang(l){
   document.querySelectorAll("[data-i18n]").forEach(el=>{
     const k=el.getAttribute("data-i18n"); if(d[k]) el.textContent=d[k];
   });
-  $("t_title").textContent=l==="it"?"Trading Home — Definitiva":l==="en"?"Trading Home — Final":"Trading Home — Final";
-  $("t_note").textContent=l==="it"?"Crypto live (Binance). Per altri asset: carica un CSV qui sotto."
-    :l==="en"?"Live crypto (Binance). For other assets: upload a CSV below."
-    :"Live-Krypto (Binance). Für andere Assets: CSV unten hochladen.";
+  $("t_title").textContent=l==="it"?"Trading Home — Universale":l==="en"?"Trading Home — Universal":"Trading Home — Universal";
 }
 $("lang").addEventListener("change",e=>{setLang(e.target.value);savePrefs();}); setLang("it");
 
@@ -147,8 +146,7 @@ function rsi(closes, period=14){
   for(let i=1;i<closes.length;i++){
     const ch=closes[i]-closes[i-1];
     if(i<=period){ if(ch>0) gains+=ch; else losses-=ch; out.push(null); continue; }
-    const avgG=(gains+(ch>0?ch:0))/period;
-    const avgL=(losses+(ch<0?-ch:0))/period;
+    const avgG=(gains+(ch>0?ch:0))/period, avgL=(losses+(ch<0?-ch:0))/period;
     gains=avgG*period; losses=avgL*period;
     const rs=avgL===0?100:avgG/avgL; const v=100-(100/(1+rs)); out.push(v);
   } return out;
@@ -195,10 +193,8 @@ function updateAllCharts(candles){
     {name:'EMA50',type:'line',data:candles.map((c,i)=>({x:new Date(c.time*1000),y:e50[i]})),color:'#9aa7ff'},
     {name:'EMA200',type:'line',data:candles.map((c,i)=>({x:new Date(c.time*1000),y:e200[i]})),color:'#f59e0b'}
   ],true);
-  // RSI
   const r=rsi(closes,14);
   rsiChart.updateSeries([{name:'RSI(14)',data:candles.map((c,i)=>({x:new Date(c.time*1000),y:r[i]}))}],true);
-  // MACD
   const {macdLine,signal,hist}=macd(closes,12,26,9);
   macdChart.updateSeries([
     {name:'MACD',data:candles.map((c,i)=>({x:new Date(c.time*1000),y:macdLine[i]}))},
@@ -237,21 +233,18 @@ function localExtremaWithStrength(arr,look=3){
 function detectPatterns(c){
   const closes=c.map(k=>k.close); const {tops,bots}=localExtremaWithStrength(closes,3);
   const mean=avg(closes.slice(-Math.min(200,closes.length))); const tol=0.0075, minSep=8, maxS=6; const signals=[];
-  // Double Top
   for(let a=0;a<tops.length-1;a++) for(let b=a+1;b<tops.length;b++){
     const i=tops[a].i,j=tops[b].i; if(j-i<minSep) continue;
     const near=Math.abs(closes[i]-closes[j])/((closes[i]+closes[j])/2)<=tol; if(!near) continue;
     const midMin=Math.min(...closes.slice(i+1,j)); const necklineOk=(Math.max(closes[i],closes[j])-midMin)/mean>0.004;
     if(!necklineOk) continue; const score=(tops[a].strength+tops[b].strength)+(j-i)*0.001; signals.push({type:'Double Top',idx:j,score,ts:c[j].time}); break;
   }
-  // Double Bottom
   for(let a=0;a<bots.length-1;a++) for(let b=a+1;b<bots.length;b++){
     const i=bots[a].i,j=bots[b].i; if(j-i<minSep) continue;
     const near=Math.abs(closes[i]-closes[j])/((closes[i]+closes[j])/2)<=tol; if(!near) continue;
     const midMax=Math.max(...closes.slice(i+1,j)); const necklineOk=(midMax-Math.min(closes[i],closes[j]))/mean>0.004;
     if(!necklineOk) continue; const score=Math.abs(bots[a].strength+bots[b].strength)+(j-i)*0.001; signals.push({type:'Double Bottom',idx:j,score,ts:c[j].time}); break;
   }
-  // Head & Shoulders
   for(let k=1;k<tops.length-1;k++){
     const L=tops[k-1].i,H=tops[k].i,R=tops[k+1].i; if(R-L<minSep) continue;
     const headHigher=closes[H]>closes[L]*1.01&&closes[H]>closes[R]*1.01;
@@ -264,12 +257,53 @@ function detectPatterns(c){
     "Pattern: "+picked.map(s=>`<span class="tag ${s.type.includes('Top')?'bad':s.type.includes('Bottom')?'good':'warn'}">${s.type} — ${fmt(s.ts)}</span>`).join(" ");
 }
 
-/* ===== data sources ===== */
-async function fetchBinance(sym,interval='1h',limit=800){
-  const url=`https://api.binance.com/api/v3/klines?symbol=${encodeURIComponent(sym)}&interval=${interval}&limit=${limit}`;
-  const r=await fetch(url); if(!r.ok) throw new Error('Binance error');
-  const d=await r.json(); return d.map(x=>({time:Math.floor(x[0]/1000),open:+x[1],high:+x[2],low:+x[3],close:+x[4],volume:+x[5]}));
+/* ===== universal sources (Binance + Stooq) ===== */
+function clean(s){ return (s||"").trim().toUpperCase().replace(/\s+/g,"").replace(/\//g,""); }
+const ALIAS={
+  "BITCOIN":"BTCUSDT","BTC":"BTCUSDT","ETHEREUM":"ETHUSDT","ETH":"ETHUSDT","BNB":"BNBUSDT","SOL":"SOLUSDT",
+  "XRP":"XRPUSDT","ADA":"ADAUSDT","DOGE":"DOGEUSDT","MATIC":"MATICUSDT",
+  "EUR/USD":"EURUSD","EURUSD":"EURUSD","GBPUSD":"GBPUSD","USDJPY":"USDJPY","GBPJPY":"GBPJPY","USDCHF":"USDCHF",
+  "ORO":"XAUUSD","GOLD":"XAUUSD","XAUUSD":"XAUUSD","ARGENTO":"XAGUSD","SILVER":"XAGUSD","XAGUSD":"XAGUSD",
+  "PETROLIO":"BRENT","OIL":"BRENT","WTI":"WTI","BRENT":"BRENT",
+  "SP500":"^SPX","S&P500":"^SPX","SPX":"^SPX","NASDAQ":"^NDQ","DAX":"^DAX","FTSEMIB":"^FTMIB","FTSE100":"^FTSE",
+  "US10Y":"US10Y","BUND10Y":"DE10Y"
+};
+function detectSource(raw){
+  const q=clean(raw);
+  if (ALIAS[q] && /USDT$/.test(ALIAS[q])) return {src:"binance",symbol:ALIAS[q]};
+  if (/^[A-Z0-9]+USDT$/.test(q)) return {src:"binance",symbol:q};
+  let sym=ALIAS[q]||q; sym=sym.toLowerCase();
+  if (/^[a-z]{6}$/.test(sym)) return {src:"stooq",symbol:sym};
+  if (/^\^/.test(sym)) return {src:"stooq",symbol:sym};
+  if (/(brent|wti|xauusd|xagusd)/.test(sym)) return {src:"stooq",symbol:sym};
+  if (/^[a-z]{1,6}$/.test(sym)) sym += ".us";
+  return {src:"stooq",symbol:sym};
 }
+async function fetchBinanceCandles(symbol, interval='1h', limit=800){
+  const url=`https://api.binance.com/api/v3/klines?symbol=${encodeURIComponent(symbol)}&interval=${interval}&limit=${limit}`;
+  const r=await fetch(url); if(!r.ok) throw new Error("Binance error");
+  const data=await r.json();
+  return data.map(d=>({time:Math.floor(d[0]/1000),open:+d[1],high:+d[2],low:+d[3],close:+d[4],volume:+d[5]}));
+}
+async function fetchStooqDaily(symbol, limit=800){
+  const url=`https://stooq.com/q/d/l/?s=${encodeURIComponent(symbol)}&i=d`;
+  const r=await fetch(url,{cache:"no-store"}); if(!r.ok) throw new Error("Stooq error");
+  const text=await r.text(); const lines=text.trim().split(/\r?\n/); const out=[];
+  for(let i=1;i<lines.length;i++){
+    const [DateStr,Open,High,Low,Close,Volume]=lines[i].split(",");
+    if(!DateStr||!Open) continue;
+    const ts=Math.floor(new Date(DateStr+"T00:00:00Z").getTime()/1000);
+    out.push({time:ts,open:+Open,high:+High,low:+Low,close:+Close,volume:+(Volume||0)});
+  }
+  return out.sort((a,b)=>a.time-b.time).slice(-limit);
+}
+async function fetchUniversal(raw){
+  const {src,symbol}=detectSource(raw);
+  if(src==="binance"){ const itv=$("interval").value; return await fetchBinanceCandles(symbol,itv,800); }
+  else{ const data=await fetchStooqDaily(symbol,800); if(!data.length) throw new Error("Nessun dato da Stooq per "+symbol); return data; }
+}
+
+/* ===== data: CSV & news ===== */
 function parseCSV(text){
   const L=text.trim().split(/\r?\n/), H=L[0].split(',').map(s=>s.trim().toLowerCase());
   const idx={t:H.findIndex(h=>["timestamp","date","time","t"].includes(h)),o:H.findIndex(h=>["open","o"].includes(h)),
@@ -299,15 +333,29 @@ function renderNews(items){
 }
 
 /* ===== UI ===== */
-async function loadSymbol(sym){
-  $("status").textContent=`Carico ${sym}…`;
+async function loadSymbol(raw){
+  const q = raw || $("symbol").value;
+  $("status").textContent = "Carico " + q + "…";
   try{
-    const itv=$("interval").value; const candles=await fetchBinance(sym,itv,800);
-    updateAllCharts(candles); $("status").textContent=`${sym} (${itv}) — candele: ${candles.length}`;
-  }catch(e){ $("status").textContent="Errore: "+e.message; alert("Simbolo non valido o rete non disponibile. Es: BTCUSDT"); }
+    const candles = await fetchUniversal(q);
+    updateAllCharts(candles);
+    $("status").textContent = `${clean(q)} — candele: ${candles.length}`;
+  }catch(e){
+    $("status").textContent = "Errore: " + e.message;
+    alert("Simbolo non valido o rete non disponibile.\nEsempi:\n- Crypto: BTCUSDT\n- Forex: EURUSD\n- Oro: XAUUSD\n- Azioni USA: AAPL (o aapl.us)\n- Indici: ^SPX");
+  }
 }
-$("search").addEventListener("click",()=>{const s=$("symbol").value.trim().toUpperCase()||"BTCUSDT"; savePrefs(); loadSymbol(s);});
-$("refresh").addEventListener("click",()=>{const s=$("symbol").value.trim().toUpperCase()||"BTCUSDT"; loadSymbol(s);});
+$("search").addEventListener("click", () => {
+  const q = $("symbol").value.trim();
+  if (!q) { alert("Inserisci un simbolo o nome (es. BTCUSDT, EURUSD, XAUUSD, AAPL, ^SPX)"); return; }
+  savePrefs(); loadSymbol(q);
+});
+$("refresh").addEventListener("click", () => {
+  const q = $("symbol").value.trim() || localStorage.getItem("th_symbol") || "BTCUSDT";
+  loadSymbol(q);
+});
+$("symbol").addEventListener("keydown", (e) => { if(e.key==="Enter"){ e.preventDefault(); $("search").click(); }});
+
 $("csv").addEventListener("change",async e=>{
   const f=e.target.files?.[0]; if(!f) return; $("status").textContent="Carico CSV…";
   try{ const rows=parseCSV(await f.text()); if(rows.length<20) throw new Error("CSV troppo corto");
@@ -316,6 +364,7 @@ $("csv").addEventListener("change",async e=>{
 });
 $("newsBtn").addEventListener("click",async()=>{ try{$("newsList").innerHTML=`<div class="muted">Carico…</div>`; renderNews(await fetchNews($("newsQ").value.trim()));}
   catch(e){$("newsList").innerHTML=`<div class="muted">Errore news.</div>`;}});
+
 $("togglePatterns").addEventListener("change",()=>{ if($("#togglePatterns").checked && lastCandles.length) detectPatterns(lastCandles); else $("signals").innerHTML=""; });
 
 /* ===== prefs & boot ===== */
@@ -328,4 +377,3 @@ initCharts(); loadPrefs(); loadSymbol($("symbol").value||"BTCUSDT");
 </script>
 </body>
 </html>
-
