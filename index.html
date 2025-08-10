@@ -325,33 +325,53 @@ async function fetchBinanceCandles(symbol, interval='1h', limit=800){
 async function fetchTextWithFallback(urls){
   for(const u of urls){
     try{
-      let s=await withTimeout(t(u),8000);
-      s=s.replace(/<[^>]+>/g,"\n").replace(/\r\n/g,"\n").replace(/\r/g,"\n");
-      const i=s.search(/(^|\n)\s*Date\s*,\s*Open\s*,\s*High\s*,\s*Low\s*,\s*Close/i);
-      if(i>=0){ s=s.slice(i).trim(); if(/^Date\s*,\s*Open\s*,\s*High\s*,\s*Low\s*,\s*Close/i.test(s.split("\n")[0])) return s; }
-    }catch(_){}
-  } throw new Error("Stooq non disponibile");
+      let s = await withTimeout(fetch(u, {cache: "no-store"}).then(r => r.text()), 13000);
+      // pulizia minima + trova intestazione corretta
+      s = s.replace(/<[^>]+>/g,"\n").replace(/\r\n/g,"\n").replace(/\r/g,"\n");
+      const i = s.search(/(^|\n)\s*Date\s*,\s*Open\s*,\s*High\s*,\s*Low\s*,\s*Close/i);
+      if(i >= 0){
+        s = s.slice(i).trim();
+        if(/^Date\s*,\s*Open\s*,\s*High\s*,\s*Low\s*,\s*Close/i.test(s.split("\n")[0])) return s;
+      }
+    }catch(_) {}
+  }
+  throw new Error("Stooq non disponibile");
 }
-async function fetchStooqDaily(symbol,limit=800){
-  const path=`q/d/l/?s=${encodeURIComponent(symbol)}&i=d`;
-  const s=await fetchTextWithFallback([
+
+async function fetchStooqDaily(symbol, limit=800){
+  const bust = `&t=${Date.now()}`; // anticache
+  const path = `q/d/l/?s=${encodeURIComponent(symbol)}&i=d${bust}`;
+  const urls = [
     `https://stooq.com/${path}`,
     `https://stooq.pl/${path}`,
+    // mirror tramite proxy che aggira CORS/CDN
     `https://r.jina.ai/http://stooq.com/${path}`,
-    `https://r.jina.ai/http://stooq.pl/${path}`
-  ]);
-  const lines=s.trim().split("\n"); let start=0;
-  for(let i=0;i<lines.length;i++){ if(/^\s*Date\s*,\s*Open\s*,\s*High\s*,\s*Low\s*,\s*Close/i.test(lines[i])){start=i+1;break;} }
-  const out=[]; for(let i=start;i<lines.length;i++){
-    const row=lines[i].trim(); if(!row) continue; const c=row.split(","); if(c.length<5) continue;
-    const [DateStr,Open,High,Low,Close,Volume]=c.map(s=>s.trim());
+    `https://r.jina.ai/http://stooq.pl/${path}`,
+    `https://r.jina.ai/http://stooq.org/${path}`,
+    `https://r.jina.ai/https://stooq.com/${path}`
+  ];
+
+  const s = await fetchTextWithFallback(urls);
+  const lines = s.trim().split("\n");
+  // trova header
+  let start = 0;
+  for(let i=0;i<lines.length;i++){
+    if(/^\s*Date\s*,\s*Open\s*,\s*High\s*,\s*Low\s*,\s*Close/i.test(lines[i])){ start = i+1; break; }
+  }
+  const out = [];
+  for(let i=start;i<lines.length;i++){
+    const row = lines[i].trim(); if(!row) continue;
+    const c = row.split(","); if(c.length < 5) continue;
+    const [DateStr,Open,High,Low,Close,Volume] = c.map(s => s.trim());
     if(!/^\d{4}-\d{2}-\d{2}$/.test(DateStr)) continue;
-    const ts=Math.floor(new Date(DateStr+"T00:00:00Z").getTime()/1000);
+    // usa mezzogiorno UTC per evitare slittamenti di fuso
+    const ts = Math.floor(new Date(DateStr+"T12:00:00Z").getTime()/1000);
     out.push({time:ts,open:+Open,high:+High,low:+Low,close:+Close,volume:Volume?+Volume:0});
   }
   if(!out.length) throw new Error("Nessun dato valido da Stooq");
   return out.sort((a,b)=>a.time-b.time).slice(-limit);
 }
+
 function genDemo(n=500,start=20000){
   const out=[]; let c=start,o=start;
   for(let i=0;i<n;i++){
