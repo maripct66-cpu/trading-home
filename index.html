@@ -294,9 +294,13 @@ function detectSource(raw){
 }
 
 /* ---------- fetch con timeout & fallback ---------- */
-function withTimeout(promise, ms=8000){
-  return Promise.race([promise,new Promise((_,rej)=>setTimeout(()=>rej(new Error("timeout")),ms))]);
+function withTimeout(promise, ms=13000){  // 13s: più tollerante su reti mobili
+  return Promise.race([
+    promise,
+    new Promise((_, rej) => setTimeout(() => rej(new Error("timeout")), ms))
+  ]);
 }
+
 async function j(url){const r=await fetch(url,{cache:"no-store"});if(!r.ok)throw new Error("HTTP "+r.status);return r.json();}
 async function t(url){const r=await fetch(url,{cache:"no-store"});if(!r.ok)throw new Error("HTTP "+r.status);return r.text();}
 
